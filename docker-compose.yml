@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    container_name: rembering
+    volumes:
+      - rembering-data:/app/www
+
+volumes:
+  rembering-data:
