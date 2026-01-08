@@ -9,6 +9,12 @@ from src.core import config
 
 from loguru import logger
 
+logger.remove()
+logger.add(
+    "logs.log", 
+    rotation = "10 MB",
+    format = "<red>[REMEMBER]</red> <green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
+)
 
 async def main():
     engine = create_async_engine(config.DB_URL)
