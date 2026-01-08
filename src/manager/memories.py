@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncEngine
 from loguru import logger
 
+from .tools import except_handler
 from .database import UserManager, MemoryManager, _Memory
 from ..core import BaseUser, BaseResponse, OutputUser, OutputMemory
 
@@ -22,6 +23,7 @@ class Memories:
         self.user_manager = UserManager(engine)
         self.memory_manager = MemoryManager(engine)
 
+    @except_handler
     async def add_user(
         self, chat_id: int, name: str, interval: int = 300
     ) -> BaseResponse[OutputUser | None]:
@@ -45,22 +47,16 @@ class Memories:
                 chat_id, name, interval
             )
         )
-        try:
-            result = await self.user_manager.add_user(
-                BaseUser(name=name, chat_id=chat_id, interval=interval)
+        result = await self.user_manager.add_user(
+            BaseUser(name=name, chat_id=chat_id, interval=interval)
+        )
+        if result.success:
+            logger.success(
+                f"Успешно удалось добавить пользователя (user_id={result.item.id}, message={result.message})"
             )
-            if result.success:
-                logger.success(
-                    f"Успешно удалось добавить пользователя (user_id={result.item.id}, message={result.message})"
-                )
-            return result
-        except Exception as e:
-            return BaseResponse(
-                success=False,
-                message=f"Ошибка во время добавления пользователя {e}",
-                item=None,
-            )
+        return result
 
+    @except_handler
     async def add_memory(
         self, chat_id: int, memory: _Memory
     ) -> BaseResponse[OutputMemory | None]:
@@ -82,28 +78,21 @@ class Memories:
                 chat_id, memory.title
             )
         )
-        try:
-            if user := await self.user_manager.get_user(chat_id):
-                if not user.success:
-                    logger.warning(
-                        "Пользователь не найден (chat_id={})".format(chat_id)
-                        if user.success
-                        else f"Ошибка во время добавления памяти (message={user.message})"
-                    )
-                    return BaseResponse(success=False, message=user.message, item=None)
-                result = await self.memory_manager.add_memory(memory, user.item.id)
-                logger.success(
-                    f"Успешно удалось добавить память (user_id={user.item.id}, message={result.message})"
+        if user := await self.user_manager.get_user(chat_id):
+            if not user.success:
+                logger.warning(
+                    "Пользователь не найден (chat_id={})".format(chat_id)
+                    if user.success
+                    else f"Ошибка во время добавления памяти (message={user.message})"
                 )
-                return result
-        except Exception as e:
-            logger.error(f"Ошибка во время добавления памяти (error = {e})")
-            return BaseResponse(
-                success=False,
-                message=f"Ошибка во время добавления памяти {e}",
-                item=None,
+                return BaseResponse(success=False, message=user.message, item=None)
+            result = await self.memory_manager.add_memory(memory, user.item.id)
+            logger.success(
+                f"Успешно удалось добавить память (user_id={user.item.id}, message={result.message})"
             )
+            return result
 
+    @except_handler
     async def get_memories(
         self, chat_id: int
     ) -> BaseResponse[list[OutputMemory] | None]:
@@ -119,24 +108,66 @@ class Memories:
         :rtype: BaseResponse[list[OutputMemory] | None]
         """
         logger.info("Попытка получить память (chat_id={})".format(chat_id))
-        try:
-            if user := await self.user_manager.get_user(chat_id):
-                if not user.success:
-                    logger.warning(
-                        "Пользователь не найден (chat_id={})".format(chat_id)
-                        if user.success
-                        else f"Ошибка во время получение памяти (message={user.message})"
-                    )
-                    return BaseResponse(success=False, message=user.message, item=None)
-                result = await self.memory_manager.get_memory(user.item.id)
-                logger.success(
-                    f"Успешно удалось получить память (user_id={user.item.id}, message={result.message})"
-                )
-                return result
-        except Exception as e:
-            logger.error(f"Ошибка во время добавления памяти (error = {e})")
-            return BaseResponse(
-                success=False,
-                message=f"Ошибка во время добавления памяти {e}",
-                item=None,
+        user = await self.user_manager.get_user(chat_id)
+        if not user.success:
+            logger.warning(
+                "Пользователь не найден (chat_id={})".format(chat_id)
+                if user.success
+                else f"Ошибка во время получение памяти (message={user.message})"
             )
+            return BaseResponse(success=False, message=user.message, item=None)
+        result = await self.memory_manager.get_memorys(user.item.id)
+        logger.success(
+            f"Успешно удалось получить память (user_id={user.item.id}, message={result.message})"
+        )
+        return result
+
+    @except_handler
+    async def get_memory(self, memory_id: int) -> BaseResponse[OutputMemory | None]:
+        """
+        Получает воспоминание по его ID.
+
+        :param memory_id: Уникальный идентификатор воспоминания
+        :type memory_id: int
+
+        :return: Объект ответа с результатом операции и данными о воспоминании (или None при ошибке или если воспоминание не найдено)
+        :rtype: BaseResponse[OutputMemory | None]
+        """
+        logger.info("Попытка получить память (memory_id={})".format(memory_id))
+        memory = await self.memory_manager.get_memory(memory_id)
+        if not memory.success:
+            logger.warning(
+                "Память не найдена (memory_id={})".format(memory_id)
+                if memory.success
+                else f"Ошибка во время получение памяти (message={memory.message})"
+            )
+            return BaseResponse(success=False, message=memory.message, item=None)
+        logger.success(
+            "Успешно удалось получить память (memory_id={})".format(memory_id)
+        )
+        return memory
+
+    @except_handler
+    async def delete_memory(self, memory_id: int) -> BaseResponse[bool]:
+        """
+        Удаляет воспоминание по его ID.
+
+        :param memory_id: Уникальный идентификатор воспоминания
+        :type memory_id: int
+
+        :return: Объект ответа с результатом операции и булевым значением (True при успешном удалении)
+        :rtype: BaseResponse[bool]
+        """
+        logger.info("Попытка удалить память (memory_id={})".format(memory_id))
+        memory = await self.memory_manager.delete_memory(memory_id)
+        if not memory.success:
+            logger.warning(
+                "Память не найдена (memory_id={})".format(memory_id)
+                if memory.success
+                else f"Ошибка во время удаления памяти (message={memory.message})"
+            )
+            return BaseResponse(success=False, message=memory.message, item=False)
+        logger.success(
+            "Успешно удалось удалить память (memory_id={})".format(memory_id)
+        )
+        return memory

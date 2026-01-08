@@ -1,11 +1,13 @@
 import random
 from string import Template
 
-from aiogram.types import Message
+from aiogram import F
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from .tools import id_extracter
 from .base import BaseRouter
 from ...core import config
 from ...core.entites import OutputMemory
@@ -33,9 +35,32 @@ class ShowMemory(BaseRouter):
 
         Настраивает обработку команды /showmemory.
         """
-        self.router.message.register(self.show_memory, Command("showmemory"))
+        self.router.message.register(self.show_memorys, Command("showmemory"))
+        self.router.callback_query.register(
+            self.show_memory, F.data.startswith("get-memory")
+        )
 
-    async def show_memory(self, msg: Message):
+    async def show_memory(self, call: CallbackQuery):
+        id = id_extracter(call.data)
+        memory = await self.manager.get_memory(id)
+
+        await call.message.delete()
+        if not memory.success:
+            await call.message.answer(
+                "<b>Не удалось получить данные... (╥﹏╥)</b>",
+            )
+            return
+
+        elif memory.item is None:
+            await call.message.answer(
+                "<b>Не удалось получить данные... (╥﹏╥)</b>",
+            )
+            return
+
+        else:
+            await self.send_memeory(call.message, memory.item)
+
+    async def show_memorys(self, message: Message):
         """
         Обрабатывает команду /showmemory и отображает список воспоминаний.
 
@@ -43,12 +68,12 @@ class ShowMemory(BaseRouter):
         формирует ответное сообщение со списком и случайной цитатой,
         прикрепляет клавиатуру с выбором воспоминаний.
 
-        :param msg: Входящее сообщение от пользователя
+        :param message: Входящее сообщение от пользователя
         """
-        response = await self.manager.get_memories(msg.chat.id)
+        response = await self.manager.get_memories(message.chat.id)
 
         if response.success:
-            await msg.answer(
+            await message.answer(
                 FIND_TEXT.substitute(
                     count=len(response.item),
                     items="\n".join(
@@ -60,7 +85,7 @@ class ShowMemory(BaseRouter):
                 reply_markup=self._generate_keyboard(response.item),
             )
         else:
-            await msg.answer(
+            await message.answer(
                 "<b>Не удалось получить данные... (╥﹏╥)</b>\n\nПопробуйте позже!"
             )
 

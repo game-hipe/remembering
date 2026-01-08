@@ -26,9 +26,8 @@ async def set_commands(bot: Bot):
     commands = [
         BotCommand(command="addmemory", description="Добавить напоминание"),
         BotCommand(command="showmemory", description="Показать напоминания"),
-        BotCommand(command="deletememory", description="Удалить напоминание"),
-        BotCommand(command="help", description="Помощь"),
         BotCommand(command="start", description="Начать работу с ботом"),
+        BotCommand(command="help", description="Помощь"),
     ]
     await bot.set_my_commands(commands)
 

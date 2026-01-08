@@ -66,7 +66,7 @@ class MemoryManager(BaseDataBaseManager):
                     success=False, message="Воспоминание не найдено", item=False
                 )
 
-    async def get_memory(self, user_id: int) -> BaseResponse[list[OutputMemory]]:
+    async def get_memorys(self, user_id: int) -> BaseResponse[list[OutputMemory]]:
         """
         Получает список всех воспоминаний для указанного пользователя.
 
@@ -90,4 +90,28 @@ class MemoryManager(BaseDataBaseManager):
                 )
             return BaseResponse(
                 success=False, message="Воспоминания не найдены", item=[]
+            )
+
+    async def get_memory(self, memory_id: int) -> BaseResponse[OutputMemory | None]:
+        """
+        Получает данные воспоминания по его идентификатору.
+
+        Выполняет поиск воспоминания в базе данных и возвращает его данные
+        в формате OutputMemory.
+
+        :param memory_id: Идентификатор воспоминания в базе данных
+        :type memory_id: int
+        :return: Объект ответа с результатом и данными воспоминания (или None, если не найдено)
+        :rtype: BaseResponse[OutputMemory | None]
+        """
+        async with self.Session() as session:
+            memory = await session.get(Memory, memory_id)
+            if memory:
+                return BaseResponse(
+                    success=True,
+                    message="Воспоминание найдено",
+                    item=self._build_memory(memory, None),
+                )
+            return BaseResponse(
+                success=False, message="Воспоминание не найдено", item=None
             )

@@ -1,14 +1,17 @@
 from string import Template
+from typing import Awaitable
 
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from aiogram.filters import Command, StateFilter
+from aiogram.exceptions import TelegramBadRequest
 from aiogram import F
 
 from .base import BaseRouter
 from ...core.entites import TextMemory, PhotoMemory, VideoMemory
 from ...core import config
+from ...core.entites import OutputMemory
 
 SUCCESS_ADDED_TEXT = Template(
     "📝 <b>Воспоминание сохранено!</b>\n\n"
@@ -85,19 +88,19 @@ class MemoryRouter(BaseRouter):
             self.handle_wrong_input, StateFilter(AddMemory.waiting_photo)
         )
 
-    async def add_memory(self, msg: Message, state: FSMContext):
+    async def add_memory(self, message: Message, state: FSMContext):
         """
         Начинает процесс добавления воспоминания.
 
         Отправляет запрос на ввод заголовка и переводит FSM в состояние waiting_title.
 
-        :param msg: Объект входящего сообщения от пользователя
+        :param message: Объект входящего сообщения от пользователя
         :param state: Контекст состояния FSM
         """
-        await msg.answer("Введите заголовок воспоминания:")
+        await message.answer("Введите заголовок воспоминания:")
         await state.set_state(AddMemory.waiting_title)
 
-    async def get_title(self, msg: Message, state: FSMContext):
+    async def get_title(self, message: Message, state: FSMContext):
         """
         Обрабатывает ввод заголовка воспоминания.
 
@@ -107,28 +110,28 @@ class MemoryRouter(BaseRouter):
         - Длину (не более 255 символов)
         При успехе сохраняет заголовок и переходит к вводу описания.
 
-        :param msg: Сообщение с заголовком
+        :param message: Сообщение с заголовком
         :param state: Контекст состояния FSM
         """
-        if msg.text is None:
-            await msg.answer("Пожалуйста, введите заголовок воспоминания")
+        if message.text is None:
+            await message.answer("Пожалуйста, введите заголовок воспоминания")
             return
-        elif not msg.text.strip():
-            await msg.answer(
+        elif not message.text.strip():
+            await message.answer(
                 "Заголовок не может быть пустым. Пожалуйста, введите заголовок воспоминания"
             )
             return
-        elif len(msg.text) > 255:
-            await msg.answer(
+        elif len(message.text) > 255:
+            await message.answer(
                 "Заголовок слишком длинный. Пожалуйста, введите заголовок не длиннее 255 символов"
             )
             return
 
-        await state.update_data(title=msg.text)
-        await msg.answer("Теперь введите описание воспоминания:")
+        await state.update_data(title=message.text)
+        await message.answer("Теперь введите описание воспоминания:")
         await state.set_state(AddMemory.waiting_content)
 
-    async def get_content(self, msg: Message, state: FSMContext):
+    async def get_content(self, message: Message, state: FSMContext):
         """
         Обрабатывает ввод описания воспоминания.
 
@@ -138,131 +141,144 @@ class MemoryRouter(BaseRouter):
         - Длину (не более 2048 символов)
         При успехе сохраняет описание и переходит к этапу медиа.
 
-        :param msg: Сообщение с описанием
+        :param message: Сообщение с описанием
         :param state: Контекст состояния FSM
         """
-        if msg.text is None:
-            await msg.answer("Пожалуйста, введите описание воспоминания")
+        if message.text is None:
+            await message.answer("Пожалуйста, введите описание воспоминания")
             return
-        elif not msg.text.strip():
-            await msg.answer(
+        elif not message.text.strip():
+            await message.answer(
                 "Описание не может быть пустым. Пожалуйста, введите описание воспоминания"
             )
             return
-        elif len(msg.text) > 2048:
-            await msg.answer(
+        elif len(message.text) > 2048:
+            await message.answer(
                 "Описание слишком длинное. Пожалуйста, введите описание не длиннее 2048 символов"
             )
             return
 
-        await state.update_data(content=msg.text)
-        await msg.answer(
+        await state.update_data(content=message.text)
+        await message.answer(
             "Теперь отправьте фото/видео для воспоминания (Либо 'нет' для без фото):"
         )
         await state.set_state(AddMemory.waiting_photo)
 
-    async def handle_no_media(self, msg: Message, state: FSMContext):
+    async def handle_no_media(self, message: Message, state: FSMContext):
         """
         Обрабатывает выбор отсутствия медиа (ввод 'нет').
 
         Извлекает ранее введённые заголовок и описание,
         сохраняет воспоминание без медиа через менеджер.
 
-        :param msg: Сообщение с текстом "нет"
+        :param message: Сообщение с текстом "нет"
         :param state: Контекст состояния FSM
         """
         data = await state.get_data()
         title = data.get("title")
         content = data.get("content")
 
-        response = await self.save_memory(msg.chat.id, title, content)
-
+        response = await self.save_memory(message.chat.id, title, content)
         if response.success:
-            await msg.answer(
-                SUCCESS_ADDED_TEXT.substitute(title=title, content=content)
+            await self._safe_send_message(
+                message.answer(
+                    SUCCESS_ADDED_TEXT.substitute(title=title, content=content)
+                ),
+                message,
+                response.item,
             )
         else:
-            await msg.answer(UNSUCCESS_ADDED_TEXT.substitute(message=response.message))
+            await message.answer(
+                UNSUCCESS_ADDED_TEXT.substitute(message=response.message)
+            )
 
         await state.clear()
 
-    async def handle_with_photo(self, msg: Message, state: FSMContext):
+    async def handle_with_photo(self, message: Message, state: FSMContext):
         """
         Обрабатывает загрузку фото.
 
         Скачивает фото, сохраняет его на диск,
         затем сохраняет воспоминание с указанием типа 'photo'.
 
-        :param msg: Сообщение с фото
+        :param message: Сообщение с фото
         :param state: Контекст состояния FSM
         """
-        photo_id = msg.photo[-1].file_id
+        photo_id = message.photo[-1].file_id
         file_path = config.PATH_IMAGE / f"{photo_id}.jpg"
-        await msg.bot.download(photo_id, file_path)
+        await message.bot.download(photo_id, file_path)
 
         data = await state.get_data()
         title = data.get("title")
         content = data.get("content")
 
         response = await self.save_memory_with_media(
-            msg.chat.id, title, content, file_path, "photo"
+            message.chat.id, title, content, file_path, "photo"
         )
         if response.success:
-            await msg.answer_photo(
-                photo_id,
-                caption=SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
+            await self._safe_send_message(
+                message.answer_photo(
+                    photo_id,
+                    caption=SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
+                ),
+                message,
+                response.item,
             )
         else:
-            await msg.answer(
+            await message.answer(
                 caption=UNSUCCESS_ADDED_TEXT.substitute(message=response.message)
             )
 
-        await msg.answer("Воспоминание сохранено с фото!")
+        await message.answer("Воспоминание сохранено с фото!")
         await state.clear()
 
-    async def handle_with_video(self, msg: Message, state: FSMContext):
+    async def handle_with_video(self, message: Message, state: FSMContext):
         """
         Обрабатывает загрузку видео.
 
         Скачивает видео, сохраняет его на диск,
         затем сохраняет воспоминание с указанием типа 'video'.
 
-        :param msg: Сообщение с видео
+        :param message: Сообщение с видео
         :param state: Контекст состояния FSM
         """
-        video_id = msg.video.file_id
+        video_id = message.video.file_id
         file_path = config.PATH_VIDEO / f"{video_id}.mp4"
-        await msg.bot.download(video_id, file_path)
+        await message.bot.download(video_id, file_path)
 
         data = await state.get_data()
         title = data.get("title")
         content = data.get("content")
 
         response = await self.save_memory_with_media(
-            msg.chat.id, title, content, file_path, "video"
+            message.chat.id, title, content, file_path, "video"
         )
         if response.success:
-            await msg.answer_video(
-                video_id,
-                caption=SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
+            await self._safe_send_message(
+                message.answer_video(
+                    video_id,
+                    caption=SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
+                ),
+                message,
+                response.item,
             )
         else:
-            await msg.answer(
+            await message.answer(
                 caption=UNSUCCESS_ADDED_TEXT.substitute(message=response.message)
             )
 
         await state.clear()
 
-    async def handle_wrong_input(self, msg: Message, state: FSMContext):
+    async def handle_wrong_input(self, message: Message, state: FSMContext):
         """
         Обрабатывает некорректный ввод на этапе отправки медиа.
 
         Напоминает пользователю, что нужно отправить фото, видео или написать 'нет'.
 
-        :param msg: Сообщение с некорректным содержанием
+        :param message: Сообщение с некорректным содержанием
         :param state: Контекст состояния FSM
         """
-        await msg.answer("Пожалуйста, отправьте фото, видео или напишите 'нет'")
+        await message.answer("Пожалуйста, отправьте фото, видео или напишите 'нет'")
 
     async def save_memory(self, chat_id: int, title: str, content: str):
         """
@@ -296,3 +312,32 @@ class MemoryRouter(BaseRouter):
         return await self.manager.add_memory(
             chat_id, factory(title=title, content=content, item=path)
         )
+
+    async def _safe_send_message(
+        self, awaitable: Awaitable, message: Message, memory: OutputMemory
+    ):
+        """
+        Обрабатывает возможные ошибки при отправке сообщения.
+
+        :param awaitable: Асинхронная операция отправки сообщения
+        :param message: Сообщение, которое отправлено
+        :param memory: Воспоминание, которое было отправлено
+        """
+        try:
+            await awaitable
+
+        except TelegramBadRequest as e:
+            await message.answer(
+                UNSUCCESS_ADDED_TEXT.substitute(
+                    message=f"Ошибка во время парсинга ответа: {str(e)}"
+                )
+            )
+            await self.manager.delete_memory(memory.id)
+
+        except Exception as e:
+            await message.answer(
+                UNSUCCESS_ADDED_TEXT.substitute(
+                    message=f"Ошибка во время добавление в память: {str(e)}"
+                )
+            )
+            await self.manager.delete_memory(memory.id)
