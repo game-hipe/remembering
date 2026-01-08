@@ -11,7 +11,7 @@ from loguru import logger
 
 logger.remove()
 logger.add(
-    "logs.log", 
+    "www/logs.log", 
     rotation = "10 MB",
     format = "<red>[REMEMBER]</red> <green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
 )
