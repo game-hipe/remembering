@@ -17,14 +17,15 @@ SUCCESS_ADDED_TEXT = Template(
 )
 
 UNSUCCESS_ADDED_TEXT = Template(
-    "❌ <b>Не удалось сохранить воспоминание</b>\n\n"
-    "<b>Сообщение:</b> ${message}"
+    "❌ <b>Не удалось сохранить воспоминание</b>\n\n<b>Сообщение:</b> ${message}"
 )
+
 
 class AddMemory(StatesGroup):
     waiting_title = State()
     waiting_content = State()
     waiting_photo = State()
+
 
 class MemoryRouter(BaseRouter):
     """
@@ -51,46 +52,37 @@ class MemoryRouter(BaseRouter):
         - Обработки некорректного ввода на этапе медиа
         """
         self.router.message.register(
-            self.add_memory,
-            Command("addmemory"),
-            StateFilter(None)
+            self.add_memory, Command("addmemory"), StateFilter(None)
         )
-        
+
         self.router.message.register(
-            self.get_title,
-            StateFilter(AddMemory.waiting_title)
+            self.get_title, StateFilter(AddMemory.waiting_title)
         )
-        
+
         self.router.message.register(
-            self.get_content,
-            StateFilter(AddMemory.waiting_content)
+            self.get_content, StateFilter(AddMemory.waiting_content)
         )
-        
+
         # Обработка отсутствия медиа
         self.router.message.register(
             self.handle_no_media,
             StateFilter(AddMemory.waiting_photo),
-            F.text.lower().strip() == "нет"
+            F.text.lower().strip() == "нет",
         )
-        
+
         # Обработка фото
         self.router.message.register(
-            self.handle_with_photo,
-            StateFilter(AddMemory.waiting_photo),
-            F.photo
+            self.handle_with_photo, StateFilter(AddMemory.waiting_photo), F.photo
         )
-        
+
         # Обработка видео
         self.router.message.register(
-            self.handle_with_video,
-            StateFilter(AddMemory.waiting_photo),
-            F.video
+            self.handle_with_video, StateFilter(AddMemory.waiting_photo), F.video
         )
-        
+
         # Обработка некорректного ввода на этапе медиа
         self.router.message.register(
-            self.handle_wrong_input,
-            StateFilter(AddMemory.waiting_photo)
+            self.handle_wrong_input, StateFilter(AddMemory.waiting_photo)
         )
 
     async def add_memory(self, msg: Message, state: FSMContext):
@@ -122,10 +114,14 @@ class MemoryRouter(BaseRouter):
             await msg.answer("Пожалуйста, введите заголовок воспоминания")
             return
         elif not msg.text.strip():
-            await msg.answer("Заголовок не может быть пустым. Пожалуйста, введите заголовок воспоминания")
+            await msg.answer(
+                "Заголовок не может быть пустым. Пожалуйста, введите заголовок воспоминания"
+            )
             return
         elif len(msg.text) > 255:
-            await msg.answer("Заголовок слишком длинный. Пожалуйста, введите заголовок не длиннее 255 символов")
+            await msg.answer(
+                "Заголовок слишком длинный. Пожалуйста, введите заголовок не длиннее 255 символов"
+            )
             return
 
         await state.update_data(title=msg.text)
@@ -149,14 +145,20 @@ class MemoryRouter(BaseRouter):
             await msg.answer("Пожалуйста, введите описание воспоминания")
             return
         elif not msg.text.strip():
-            await msg.answer("Описание не может быть пустым. Пожалуйста, введите описание воспоминания")
+            await msg.answer(
+                "Описание не может быть пустым. Пожалуйста, введите описание воспоминания"
+            )
             return
         elif len(msg.text) > 2048:
-            await msg.answer("Описание слишком длинное. Пожалуйста, введите описание не длиннее 2048 символов")
+            await msg.answer(
+                "Описание слишком длинное. Пожалуйста, введите описание не длиннее 2048 символов"
+            )
             return
 
         await state.update_data(content=msg.text)
-        await msg.answer("Теперь отправьте фото/видео для воспоминания (Либо 'нет' для без фото):")
+        await msg.answer(
+            "Теперь отправьте фото/видео для воспоминания (Либо 'нет' для без фото):"
+        )
         await state.set_state(AddMemory.waiting_photo)
 
     async def handle_no_media(self, msg: Message, state: FSMContext):
@@ -170,25 +172,18 @@ class MemoryRouter(BaseRouter):
         :param state: Контекст состояния FSM
         """
         data = await state.get_data()
-        title = data.get('title')
-        content = data.get('content')
-        
+        title = data.get("title")
+        content = data.get("content")
+
         response = await self.save_memory(msg.chat.id, title, content)
-        
+
         if response.success:
             await msg.answer(
-                SUCCESS_ADDED_TEXT.substitute(
-                    title=title,
-                    content=content
-                )
+                SUCCESS_ADDED_TEXT.substitute(title=title, content=content)
             )
         else:
-            await msg.answer(
-                UNSUCCESS_ADDED_TEXT.substitute(
-                    message=response.message
-                )
-            )
-        
+            await msg.answer(UNSUCCESS_ADDED_TEXT.substitute(message=response.message))
+
         await state.clear()
 
     async def handle_with_photo(self, msg: Message, state: FSMContext):
@@ -204,27 +199,24 @@ class MemoryRouter(BaseRouter):
         photo_id = msg.photo[-1].file_id
         file_path = config.PATH_IMAGE / f"{photo_id}.jpg"
         await msg.bot.download(photo_id, file_path)
-            
+
         data = await state.get_data()
-        title = data.get('title')
-        content = data.get('content')
-        
-        response = await self.save_memory_with_media(msg.chat.id, title, content, file_path, 'photo')
+        title = data.get("title")
+        content = data.get("content")
+
+        response = await self.save_memory_with_media(
+            msg.chat.id, title, content, file_path, "photo"
+        )
         if response.success:
             await msg.answer_photo(
                 photo_id,
-                caption=SUCCESS_ADDED_TEXT.substitute(
-                    title=title,
-                    content=content
-                )
+                caption=SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
             )
         else:
             await msg.answer(
-                caption=UNSUCCESS_ADDED_TEXT.substitute(
-                    message=response.message
-                )
+                caption=UNSUCCESS_ADDED_TEXT.substitute(message=response.message)
             )
-        
+
         await msg.answer("Воспоминание сохранено с фото!")
         await state.clear()
 
@@ -241,27 +233,24 @@ class MemoryRouter(BaseRouter):
         video_id = msg.video.file_id
         file_path = config.PATH_VIDEO / f"{video_id}.mp4"
         await msg.bot.download(video_id, file_path)
-        
-        data = await state.get_data()
-        title = data.get('title')
-        content = data.get('content')
 
-        response = await self.save_memory_with_media(msg.chat.id, title, content, file_path, 'video')
+        data = await state.get_data()
+        title = data.get("title")
+        content = data.get("content")
+
+        response = await self.save_memory_with_media(
+            msg.chat.id, title, content, file_path, "video"
+        )
         if response.success:
             await msg.answer_video(
                 video_id,
-                caption=SUCCESS_ADDED_TEXT.substitute(
-                    title=title,
-                    content=content
-                )
+                caption=SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
             )
         else:
             await msg.answer(
-                caption=UNSUCCESS_ADDED_TEXT.substitute(
-                    message=response.message
-                )
+                caption=UNSUCCESS_ADDED_TEXT.substitute(message=response.message)
             )
-        
+
         await state.clear()
 
     async def handle_wrong_input(self, msg: Message, state: FSMContext):
@@ -285,14 +274,12 @@ class MemoryRouter(BaseRouter):
         :return: Результат операции сохранения (объект с полями success, message)
         """
         return await self.manager.add_memory(
-            chat_id,
-            TextMemory(
-                title=title,
-                content=content
-            )
+            chat_id, TextMemory(title=title, content=content)
         )
 
-    async def save_memory_with_media(self, chat_id: int, title: str, content: str, path: str, type: str):
+    async def save_memory_with_media(
+        self, chat_id: int, title: str, content: str, path: str, type: str
+    ):
         """
         Сохраняет воспоминание с медиа (фото или видео) через менеджер.
 
@@ -305,12 +292,7 @@ class MemoryRouter(BaseRouter):
         :param type: Тип медиа ('photo' или 'video')
         :return: Результат операции сохранения
         """
-        factory = PhotoMemory if type == 'photo' else VideoMemory
+        factory = PhotoMemory if type == "photo" else VideoMemory
         return await self.manager.add_memory(
-            chat_id,
-            factory(
-                title=title,
-                content=content,
-                item=path
-            )
+            chat_id, factory(title=title, content=content, item=path)
         )

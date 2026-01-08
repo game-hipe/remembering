@@ -1,25 +1,26 @@
 """Конфиги, и модели."""
 
 from ._config import config
-from .entites.models import User, Memeory
+from .entites.models import User, Memory
 from .entites.schemas import (
-    TextMemory, 
-    VideoMemory, 
-    PhotoMemory, 
-    BaseUser, 
+    TextMemory,
+    VideoMemory,
+    PhotoMemory,
+    BaseUser,
     OutputUser,
     BaseResponse,
-    OutputMemory
+    OutputMemory,
 )
+
 __all__ = [
-    'config',
-    "TextMemory", 
-    "VideoMemory", 
-    "PhotoMemory", 
-    "BaseUser", 
+    "config",
+    "TextMemory",
+    "VideoMemory",
+    "PhotoMemory",
+    "BaseUser",
     "OutputUser",
     "User",
-    "Memeory",
+    "Memory",
     "BaseResponse",
-    "OutputMemory"
+    "OutputMemory",
 ]

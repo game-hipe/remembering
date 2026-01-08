@@ -6,60 +6,107 @@ from .base import BaseDataBaseManager
 
 
 class UserManager(BaseDataBaseManager):
-    """Класс для управление пользователями"""
-    
+    """
+    Менеджер для управления пользователями в базе данных.
+
+    Предоставляет методы для добавления, получения, удаления и проверки
+    наличия пользователей в системе. Наследует функциональность BaseDataBaseManager
+    для работы с сессиями и преобразования объектов моделей.
+    """
+
     async def add_user(self, user: BaseUser) -> BaseResponse[OutputUser]:
+        """
+        Добавляет нового пользователя в базу данных, если он ещё не существует.
+
+        Проверяет наличие пользователя по chat_id. Если пользователь уже есть,
+        возвращает его данные. В противном случае — создаёт новую запись.
+
+        :param user: Объект данных пользователя (BaseUser) с именем, chat_id и интервалом
+        :type user: BaseUser
+        :return: Объект ответа с результатом операции и данными пользователя
+        :rtype: BaseResponse[OutputUser]
+        """
         async with self.Session() as session:
             async with session.begin():
-                
-                if finded_user := await session.scalar(select(User).where(User.chat_id == user.chat_id)):
+                if finded_user := await session.scalar(
+                    select(User).where(User.chat_id == user.chat_id)
+                ):
                     return BaseResponse(
-                        success = True,
-                        message = "Данный пользователь уже находится в базе данных",
-                        item = self._build_user(finded_user)
+                        success=True,
+                        message="Данный пользователь уже находится в базе данных",
+                        item=self._build_user(finded_user),
                     )
-                    
+
                 user = self._build_user(user)
                 session.add(user)
                 await session.flush()
-                
+
                 return BaseResponse(
-                    success = True,
-                    message = "Пользователь успешно добавлен в базу данных",
-                    item = self._build_user(user)
+                    success=True,
+                    message="Пользователь успешно добавлен в базу данных",
+                    item=self._build_user(user),
                 )
-                
+
     async def get_user(self, chat_id: int) -> BaseResponse[OutputUser | None]:
+        """
+        Получает данные пользователя по его chat_id.
+
+        Выполняет поиск пользователя в базе данных и при наличии
+        возвращает его данные в формате OutputUser.
+
+        :param chat_id: Уникальный идентификатор чата в Telegram
+        :type chat_id: int
+        :return: Объект ответа с результатом и данными пользователя (или None, если не найден)
+        :rtype: BaseResponse[OutputUser | None]
+        """
         async with self.Session() as session:
-            if user :=  await session.scalar(select(User).where(User.chat_id == chat_id)):
+            if user := await session.scalar(
+                select(User).where(User.chat_id == chat_id)
+            ):
                 return BaseResponse(
-                    success = True,
-                    message = "Пользователь найден",
-                    item = self._build_user(user)
+                    success=True,
+                    message="Пользователь найден",
+                    item=self._build_user(user),
                 )
             return BaseResponse(
-                success = False,
-                message = "Пользователь не найден",
-                item = None
+                success=False, message="Пользователь не найден", item=None
             )
-            
+
     async def delete_user(self, chat_id: int) -> BaseResponse[bool]:
+        """
+        Удаляет пользователя из базы данных по его chat_id.
+
+        Выполняет удаление в рамках транзакции. Возвращает статус операции.
+
+        :param chat_id: Уникальный идентификатор чата в Telegram
+        :type chat_id: int
+        :return: Объект ответа с флагом успеха и булевым значением результата
+        :rtype: BaseResponse[bool]
+        """
         async with self.Session() as session:
             async with session.begin():
-                if user := await session.scalar(select(User).where(User.chat_id == chat_id)):
+                if user := await session.scalar(
+                    select(User).where(User.chat_id == chat_id)
+                ):
                     session.delete(user)
                     return BaseResponse(
-                        success = True,
-                        message = "Пользователь удален",
-                        item = True
+                        success=True, message="Пользователь удален", item=True
                     )
                 return BaseResponse(
-                    success = False,
-                    message = "Пользователь не найден",
-                    item = False
+                    success=False, message="Пользователь не найден", item=False
                 )
-                
+
     async def _user_in_base(self, chat_id: int) -> bool:
+        """
+        Проверяет, существует ли пользователь в базе данных.
+
+        Выполняет запрос к БД и возвращает булево значение наличия записи.
+
+        :param chat_id: Уникальный идентификатор чата в Telegram
+        :type chat_id: int
+        :return: True, если пользователь найден, иначе False
+        :rtype: bool
+        """
         async with self.Session() as session:
             async with session.begin():
                 if await session.scalar(select(User).where(User.chat_id == chat_id)):
