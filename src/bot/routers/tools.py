@@ -3,5 +3,7 @@ def id_extracter(code: str) -> int:
         return int(code.split("-")[-1])
     elif code.startswith("delete-memory-"):
         return int(code.split("-")[-1])
+    elif code.startswith("notification-"):
+        return int(code.split("-")[-1])
     else:
         raise ValueError("Неправильный формат кода")

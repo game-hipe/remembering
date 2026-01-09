@@ -3,7 +3,7 @@ from string import Template
 
 from aiogram import F
 from aiogram.types import Message, CallbackQuery
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -35,7 +35,13 @@ class ShowMemory(BaseRouter):
 
         Настраивает обработку команды /showmemory.
         """
-        self.router.message.register(self.show_memorys, Command("showmemory"))
+        self.router.message.register(
+            self.show_memorys, Command("showmemory"), StateFilter(None)
+        )
+        self.router.message.register(
+            self.show_memorys, F.text == "📋 Список воспоминаний", StateFilter(None)
+        )
+
         self.router.callback_query.register(
             self.show_memory, F.data.startswith("get-memory")
         )
@@ -101,20 +107,21 @@ class ShowMemory(BaseRouter):
         :return: Объект InlineKeyboardMarkup с сформированной клавиатурой
         """
         inline_keyboard = []
-        keybard = []
+        current_row = []  # Переименуем для ясности
 
         for indx, item in enumerate(items, 1):
-            if not indx % max_length:
-                inline_keyboard.append(keybard)
-                keybard.clear()
-                continue
-
-            keybard.append(
+            current_row.append(
                 InlineKeyboardButton(
                     text=item.title, callback_data=f"get-memory-{item.id}"
                 )
             )
-        if keybard:
-            inline_keyboard.append(keybard)
+
+            if not indx % max_length:
+                inline_keyboard.append(current_row)  # Добавляем текущий ряд
+                current_row = []  # Создаем НОВЫЙ список для следующего ряда
+
+        # Добавляем последний неполный ряд
+        if current_row:
+            inline_keyboard.append(current_row)
 
         return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)

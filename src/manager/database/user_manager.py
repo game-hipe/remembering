@@ -1,3 +1,5 @@
+from typing import AsyncGenerator
+
 from sqlalchemy import select
 
 from ...core import BaseUser, OutputUser, BaseResponse
@@ -36,15 +38,19 @@ class UserManager(BaseDataBaseManager):
                         message="Данный пользователь уже находится в базе данных",
                         item=self._build_user(finded_user),
                     )
-
-                user = self._build_user(user)
-                session.add(user)
+                create_user = self._build_user(user)
+                session.add(create_user)
                 await session.flush()
 
                 return BaseResponse(
                     success=True,
                     message="Пользователь успешно добавлен в базу данных",
-                    item=self._build_user(user),
+                    item=OutputUser(
+                        id=create_user.id,
+                        name=create_user.name,
+                        chat_id=create_user.chat_id,
+                        interval=create_user.interval,
+                    ),
                 )
 
     async def get_user(self, chat_id: int) -> BaseResponse[OutputUser | None]:
@@ -94,6 +100,50 @@ class UserManager(BaseDataBaseManager):
                     )
                 return BaseResponse(
                     success=False, message="Пользователь не найден", item=False
+                )
+
+    async def get_users(
+        self, batch_size: int = 100, start_id: int = 0
+    ) -> AsyncGenerator[BaseResponse[list[OutputUser]]]:
+        """
+        Получает список всех пользователей из базы данных.
+
+        :param batch_size: Размер выборки за один раз (по умолчанию 100)
+        :type batch_size: int
+
+        :param start_id: Начальный ID для выборки (по умолчанию 0)
+        :type start_id: int
+
+        :return: Объект ответа с результатом и списком пользователей
+        :rtype: BaseResponse[list[OutputUser]]
+
+        """
+        async with self.Session() as session:
+            while True:
+                # Выбираем пакет пользователей
+                query = (
+                    select(User)
+                    .where(User.id >= start_id)
+                    .order_by(User.id)
+                    .limit(batch_size)
+                )
+                result = await session.execute(query)
+                users_list = list(result.scalars().unique())
+
+                if not users_list:
+                    # Больше пользователей нет
+                    yield BaseResponse(
+                        success=True, message="Все пользователи получены", item=[]
+                    )
+                    break
+
+                # Получаем последний ID для следующего пакета
+                last_id = users_list[-1].id
+                start_id = last_id + 1
+                yield BaseResponse(
+                    success=True,
+                    message=f"Получено {len(users_list)} пользователей",
+                    item=[self._build_user(user) for user in users_list],
                 )
 
     async def _user_in_base(self, chat_id: int) -> bool:

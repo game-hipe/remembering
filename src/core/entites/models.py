@@ -1,7 +1,8 @@
+from datetime import datetime
 from typing import List, Literal, TypeAlias
 
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey, Integer
+from sqlalchemy import String, ForeignKey, Integer, DateTime
 
 _TypeFormat: TypeAlias = Literal["video", "photo", "text"]
 
@@ -28,6 +29,9 @@ class Memory(Base):
     item: Mapped[str] = mapped_column(String(2048), nullable=True)
 
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=True, default=datetime.now()
+    )
 
     user: Mapped[User] = relationship(  # noqa
         "User", back_populates="memories"
@@ -63,8 +67,11 @@ class User(Base):
     chat_id: Mapped[int] = mapped_column(Integer(), unique=True)
     interval: Mapped[int] = mapped_column(Integer(), default=300)
 
+    last_sent_at: Mapped[datetime] = mapped_column(
+        DateTime(), nullable=True, default=datetime.now()
+    )
     memories: Mapped[List[Memory]] = relationship(
-        "Memory", back_populates="user", cascade="all, delete-orphan"
+        "Memory", back_populates="user", cascade="all, delete-orphan", lazy="joined"
     )
 
     def __repr__(self):

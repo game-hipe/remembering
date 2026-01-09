@@ -1,13 +1,15 @@
 from string import Template
 from typing import Awaitable
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, StateFilter
 from aiogram.exceptions import TelegramBadRequest
 from aiogram import F
 
+from ._defaults import DEFAULT_KEYBOARD, CANCEL_KEYBOARD
 from .base import BaseRouter
 from ...core.entites import TextMemory, PhotoMemory, VideoMemory
 from ...core import config
@@ -57,6 +59,9 @@ class MemoryRouter(BaseRouter):
         self.router.message.register(
             self.add_memory, Command("addmemory"), StateFilter(None)
         )
+        self.router.message.register(
+            self.add_memory, F.text == "📝 Добавить воспоминание", StateFilter(None)
+        )
 
         self.router.message.register(
             self.get_title, StateFilter(AddMemory.waiting_title)
@@ -88,6 +93,10 @@ class MemoryRouter(BaseRouter):
             self.handle_wrong_input, StateFilter(AddMemory.waiting_photo)
         )
 
+        self.router.callback_query.register(
+            self.notification, F.data.startswith("notification-")
+        )
+
     async def add_memory(self, message: Message, state: FSMContext):
         """
         Начинает процесс добавления воспоминания.
@@ -97,7 +106,9 @@ class MemoryRouter(BaseRouter):
         :param message: Объект входящего сообщения от пользователя
         :param state: Контекст состояния FSM
         """
-        await message.answer("Введите заголовок воспоминания:")
+        await message.answer(
+            "Введите заголовок воспоминания:", reply_markup=CANCEL_KEYBOARD
+        )
         await state.set_state(AddMemory.waiting_title)
 
     async def get_title(self, message: Message, state: FSMContext):
@@ -182,14 +193,16 @@ class MemoryRouter(BaseRouter):
         if response.success:
             await self._safe_send_message(
                 message.answer(
-                    SUCCESS_ADDED_TEXT.substitute(title=title, content=content)
+                    SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
+                    reply_markup=self._build_safe_keyboard(response.item),
                 ),
                 message,
                 response.item,
             )
         else:
             await message.answer(
-                UNSUCCESS_ADDED_TEXT.substitute(message=response.message)
+                UNSUCCESS_ADDED_TEXT.substitute(message=response.message),
+                reply_markup=DEFAULT_KEYBOARD,
             )
 
         await state.clear()
@@ -220,13 +233,15 @@ class MemoryRouter(BaseRouter):
                 message.answer_photo(
                     photo_id,
                     caption=SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
+                    reply_markup=self._build_safe_keyboard(response.item),
                 ),
                 message,
                 response.item,
             )
         else:
             await message.answer(
-                caption=UNSUCCESS_ADDED_TEXT.substitute(message=response.message)
+                caption=UNSUCCESS_ADDED_TEXT.substitute(message=response.message),
+                reply_markup=DEFAULT_KEYBOARD,
             )
 
         await message.answer("Воспоминание сохранено с фото!")
@@ -258,13 +273,15 @@ class MemoryRouter(BaseRouter):
                 message.answer_video(
                     video_id,
                     caption=SUCCESS_ADDED_TEXT.substitute(title=title, content=content),
+                    reply_markup=self._build_safe_keyboard(response.item),
                 ),
                 message,
                 response.item,
             )
         else:
             await message.answer(
-                caption=UNSUCCESS_ADDED_TEXT.substitute(message=response.message)
+                caption=UNSUCCESS_ADDED_TEXT.substitute(message=response.message),
+                reply_markup=DEFAULT_KEYBOARD,
             )
 
         await state.clear()
@@ -330,7 +347,8 @@ class MemoryRouter(BaseRouter):
             await message.answer(
                 UNSUCCESS_ADDED_TEXT.substitute(
                     message=f"Ошибка во время парсинга ответа: {str(e)}"
-                )
+                ),
+                reply_markup=DEFAULT_KEYBOARD,
             )
             await self.manager.delete_memory(memory.id)
 
@@ -338,6 +356,58 @@ class MemoryRouter(BaseRouter):
             await message.answer(
                 UNSUCCESS_ADDED_TEXT.substitute(
                     message=f"Ошибка во время добавление в память: {str(e)}"
-                )
+                ),
+                reply_markup=DEFAULT_KEYBOARD,
             )
             await self.manager.delete_memory(memory.id)
+
+    def _build_safe_keyboard(self, memory: OutputMemory):
+        """
+        Создаёт клавиатуру для сохранений воспоминания.
+
+        :param memory: Воспоминание для отображения
+        :return: Клавиатура с кнопками "Уведомить через 30 мин.", "Уведомить через 1 час.", "Уведомить через 24 часа.", "Отмена"
+        """
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Уведомить через 30 мин.",
+                        callback_data=f"notification-1800-{memory.id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Уведомить через 1 час.",
+                        callback_data=f"notification-3600-{memory.id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Уведомить через 24 часа.",
+                        callback_data=f"notification-86400-{memory.id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="❌ Отмена", callback_data=f"delete-memory-{memory.id}"
+                    )
+                ],
+            ]
+        )
+
+    async def notification(self, call: CallbackQuery, state: FSMContext):
+        time, id = [int(x) for x in call.data.split("-")[1:]]
+
+        result = await self.manager.add_time_to_memory(id, time)
+        await call.message.delete()
+        if result.success and result.item:
+            await call.message.answer(
+                "<b>Время успешно добавлено!</b>", reply_markup=DEFAULT_KEYBOARD
+            )
+        else:
+            await call.message.answer(
+                f"<b>Не удалось добавить время... (╥﹏╥)</b>\n\nОшибка: {result.message}",
+                reply_markup=DEFAULT_KEYBOARD,
+            )
+        await state.clear()

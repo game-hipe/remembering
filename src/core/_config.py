@@ -18,6 +18,7 @@ class Config:
 
     PATH_IMAGE: Path = Path(os.getenv("PATH_IMAGE"))
     PATH_VIDEO: Path = Path(os.getenv("PATH_VIDEO"))
+    INTERVAL: int = int(os.getenv("INTERVAL", 300))
 
     CITATE: Path = Path("src/bot/citates.json")
 

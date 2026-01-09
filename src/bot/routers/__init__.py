@@ -2,6 +2,7 @@ from aiogram import Router
 
 from .add_memory import MemoryRouter
 from .show_memory import ShowMemory
+from .start import Start
 
 from ...manager.memories import Memories
 
@@ -16,4 +17,8 @@ def setup(memories: Memories) -> list[Router]:
         list[Router]: Список роутеров.
     """
 
-    return [MemoryRouter(memories).router, ShowMemory(memories).router]
+    return [
+        Start(memories).router,
+        MemoryRouter(memories).router,
+        ShowMemory(memories).router,
+    ]

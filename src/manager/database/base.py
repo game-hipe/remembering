@@ -57,7 +57,11 @@ class BaseDataBaseManager:
         """
         if isinstance(user, User):
             return OutputUser(
-                name=user.name, chat_id=user.chat_id, interval=user.interval, id=user.id
+                name=user.name,
+                chat_id=user.chat_id,
+                interval=user.interval,
+                id=user.id,
+                memories=[self._build_memory(x, None) for x in user.memories],
             )
         elif isinstance(user, BaseUser):
             return User(name=user.name, chat_id=user.chat_id, interval=user.interval)
@@ -108,6 +112,7 @@ class BaseDataBaseManager:
                 type=memory.type,
                 user_id=memory.user_id,
                 item=memory.item,
+                remind_to=memory.sent_at,
             )
         elif isinstance(memory, self.__get_memory_args()):
             return Memory(

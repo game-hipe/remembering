@@ -32,6 +32,8 @@ def get_middleware(memories: Memories):
                 await memories.add_user(chat_id, user.first_name)
                 self.cache[chat_id] = True
 
+                event
+
             # Продолжаем выполнение
             return await handler(event, data)
 

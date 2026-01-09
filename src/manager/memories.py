@@ -1,9 +1,12 @@
-from sqlalchemy.ext.asyncio import AsyncEngine
+from typing import AsyncGenerator
+from datetime import timedelta
+
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from loguru import logger
 
 from .tools import except_handler
 from .database import UserManager, MemoryManager, _Memory
-from ..core import BaseUser, BaseResponse, OutputUser, OutputMemory
+from ..core import BaseUser, BaseResponse, OutputUser, OutputMemory, Memory
 
 
 class Memories:
@@ -23,7 +26,9 @@ class Memories:
         self.user_manager = UserManager(engine)
         self.memory_manager = MemoryManager(engine)
 
-    @except_handler
+        self.Session = async_sessionmaker(engine)
+
+    # @except_handler
     async def add_user(
         self, chat_id: int, name: str, interval: int = 300
     ) -> BaseResponse[OutputUser | None]:
@@ -171,3 +176,100 @@ class Memories:
             "Успешно удалось удалить память (memory_id={})".format(memory_id)
         )
         return memory
+
+    @except_handler
+    async def get_user(self, chat_id: int) -> BaseResponse[OutputUser]:
+        """
+        Получает пользователя по его chat_id.
+
+        :param chat_id: Уникальный идентификатор чата в Telegram
+        :type chat_id: int
+
+        :retutrn: Объект ответа с результатом операции и данными о пользователе
+        :rtype: BaseResponse[OutputUser]
+        """
+        logger.info("Попытка получить пользователя (chat_id={})".format(chat_id))
+        user = await self.user_manager.get_user(chat_id)
+        if not user.success:
+            logger.warning("Пользователь не найден (chat_id={})".format(chat_id))
+            return BaseResponse(success=False, message=user.message, item=None)
+        logger.success(
+            "Успешно удалось получить пользователя (chat_id={})".format(chat_id)
+        )
+        return user
+
+    async def get_users(
+        self, batch_size: int = 100
+    ) -> AsyncGenerator[BaseResponse[list[OutputUser]]]:
+        """
+        Получает список всех пользователей.
+
+        :param batch_size: Размер пакета для запроса пользователей (по умолчанию 100)
+        :type batch_size: int
+
+        :return: Объект ответа с результатом операции и списком пользователей
+        :rtype: BaseResponse[list[OutputUser]]
+        """
+        logger.info("Попытка получить всех пользователей")
+        try:
+            async for users in self.user_manager.get_users(batch_size):
+                if not users.item:
+                    logger.info(users.message)
+                    yield users
+                    continue
+
+                logger.info(
+                    "Успешно удалось получить пользователей (count={})".format(
+                        len(users.item)
+                    )
+                )
+
+                yield users
+
+        except Exception as e:
+            logger.error(
+                f"Ошибка во время получения всех пользователей (message={str(e)})"
+            )
+            yield BaseResponse(success=False, message=str(e), item=[])
+
+    @except_handler
+    async def add_time_to_memory(
+        self, memory_id: int, seconds: int
+    ) -> BaseResponse[bool]:
+        """
+        Добавляет указанное количество секунд к времени воспоминания.
+
+        :param memory_id: Уникальный идентификатор воспоминания
+        :type memory_id: int
+
+        :param seconds: Количество секунд для добавления
+        :type seconds: int
+
+        :return: Объект ответа с результатом операции.
+        :rtype: BaseResponse[bool]
+        """
+        logger.info(
+            "Попытка добавить время к памяти (memory_id={}, seconds={})".format(
+                memory_id, seconds
+            )
+        )
+        async with self.Session() as session:
+            async with session.begin():
+                memory = await session.get(Memory, memory_id)
+                if memory is None:
+                    logger.warning("Память не найдена (memory_id={})".format(memory_id))
+                    return BaseResponse(
+                        success=True,
+                        message=f"Память не найдена (memory_id={memory_id})",
+                        item=False,
+                    )
+
+                memory.sent_at = memory.sent_at + timedelta(seconds=seconds)
+                logger.success(
+                    "Успешно добавлено время к памяти (memory_id={}, seconds={})".format(
+                        memory_id, seconds
+                    )
+                )
+                return BaseResponse(
+                    success=True, message="Время успешно добавлено", item=True
+                )

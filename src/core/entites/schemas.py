@@ -1,6 +1,7 @@
 import os
+from datetime import datetime
 from pathlib import Path
-from typing import Any, TypeVar, Optional, Generic
+from typing import Any, TypeVar, Optional, Generic, List
 
 from pydantic import BaseModel, field_validator
 
@@ -46,6 +47,7 @@ class BaseMemory(BaseModel):
 
     title: str
     content: str
+    remind_to: datetime | None = None
 
     @field_validator("title")
     def title_validator(cls, v: Any):
@@ -94,6 +96,19 @@ class BaseMemory(BaseModel):
         if len(v) > 2048:
             raise ValueError("Содержание не может быть длиннее 2048 символов.")
         return v
+
+    @field_validator("remind_to")
+    def datetime_validator(cls, v: Any):
+        if not isinstance(v, datetime):
+            return datetime.now()
+        elif isinstance(v, datetime):
+            return v
+        else:
+            raise ValueError("Неверный формат даты и времени")
+
+    @property
+    def is_expired(self) -> bool:
+        return self.remind_to < datetime.now()
 
 
 class BaseItemMemory(BaseMemory):
@@ -149,6 +164,7 @@ class OutputUser(BaseUser):
     """
 
     id: int
+    memories: List[OutputMemory] = []  # noqa
 
 
 class TextMemory(BaseMemory):

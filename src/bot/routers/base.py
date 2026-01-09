@@ -2,6 +2,7 @@ from string import Template
 from abc import ABC, abstractmethod
 
 from aiogram import Router, F
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 from aiogram.types import FSInputFile
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -10,9 +11,8 @@ from ...manager.memories import Memories
 from ...core import OutputMemory
 from .tools import id_extracter
 
-
 MEMORY_TEXT = Template(
-    "📖 <b>${title}</b>\n━━━━━━━━━━━━━━━━━━━━\n📝 ${text}\n━━━━━━━━━━━━━━━━━━━━"
+    "📖 <b>${title}</b>\n━━━━━━━━━━━━━━━━━━━━\n📝 ${text}\n━━━━━━━━━━━━━━━━━━━━\n\nУведомить в: ${date}"
 )
 
 
@@ -63,6 +63,8 @@ class BaseRouter(ABC):
         self.router.callback_query.register(
             self.delete_memory, F.data.startswith("delete-memory")
         )
+        self.router.callback_query.register(self.cancel, F.data == "cancel")
+        self.router.message.register(self.cancel, F.text == "❌ ОТМЕНА")
 
     async def send_memeory(self, message: Message, memory: OutputMemory):
         """
@@ -105,7 +107,11 @@ class BaseRouter(ABC):
         :return: Отформатированный текст с HTML-разметкой
         :rtype: str
         """
-        return MEMORY_TEXT.substitute(title=memory.title, text=memory.content)
+        return MEMORY_TEXT.substitute(
+            title=memory.title,
+            text=memory.content,
+            date=memory.remind_to.strftime("%d-%m-%Y %H:%M:%S"),
+        )
 
     def _build_memory_keyboard(self, memory: OutputMemory) -> InlineKeyboardMarkup:
         """
@@ -123,8 +129,26 @@ class BaseRouter(ABC):
                 [
                     InlineKeyboardButton(
                         text="🗑️ Удалить", callback_data=f"delete-memory-{memory.id}"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Уведомить через 30 мин.",
+                        callback_data=f"notification-1800-{memory.id}",
                     )
-                ]
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Уведомить через 1 час.",
+                        callback_data=f"notification-3600-{memory.id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔔 Уведомить через 24 часа.",
+                        callback_data=f"notification-86400-{memory.id}",
+                    )
+                ],
             ]
         )
 
@@ -152,3 +176,10 @@ class BaseRouter(ABC):
             await call.message.answer(
                 f"<b>Не удалось удалить воспоминание... (╥﹏╥)</b>\n\nОшибка: {result.message}"
             )
+
+    async def cancel(self, message: CallbackQuery, state: FSMContext):
+        if state:
+            await state.clear()
+            await message.answer("Действие отменено.")
+        else:
+            await message.answer("Нет активного состояния для отмены.")

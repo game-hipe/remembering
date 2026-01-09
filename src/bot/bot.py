@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
@@ -9,6 +11,7 @@ from ..manager.memories import Memories
 from ..core import config
 from .routers import setup
 from .middleware import get_middleware
+from ..service.notification import Notification
 
 
 async def set_commands(bot: Bot):
@@ -28,6 +31,7 @@ async def set_commands(bot: Bot):
         BotCommand(command="showmemory", description="Показать напоминания"),
         BotCommand(command="start", description="Начать работу с ботом"),
         BotCommand(command="help", description="Помощь"),
+        BotCommand(command="cancel", description="Сброс состояние"),
     ]
     await bot.set_my_commands(commands)
 
@@ -80,4 +84,22 @@ async def run_bot(manager: Memories):
     bot, dp = await setup_bot(manager)
 
     logger.success("Бот запущен")
-    await dp.start_polling(bot)
+    await asyncio.gather(dp.start_polling(bot), _run_service(manager, bot))
+
+
+async def _run_service(manager: Memories, bot: Bot) -> None:
+    """
+    Точка запуска сервисов приложения.
+
+    В текущей реализации запускает сервис уведомлений, отвечающий за
+    планирование и отправку оповещений пользователям на основе управлителя воспоминаний.
+    При необходимости сюда можно добавить другие фоновые сервисы или задачи.
+
+    :param manager: Экземпляр класса управления воспоминаниями, используемый для получения данных.
+    :type manager: Memories
+    :param bot: Экземпляр бота из библиотеки aiogram, используемый для отправки сообщений.
+    :type bot: Bot
+    :return: Ничего не возвращает.
+    :rtype: None
+    """
+    await Notification(manager, bot, interval=config.INTERVAL).start()
