@@ -372,6 +372,12 @@ class MemoryRouter(BaseRouter):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
+                        text="🔔 Уведомить через 5 мин.",
+                        callback_data=f"notification-300-{memory.id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
                         text="🔔 Уведомить через 30 мин.",
                         callback_data=f"notification-1800-{memory.id}",
                     )

@@ -1,10 +1,9 @@
 import asyncio
 import sys
-
+from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine
 from loguru import logger
 
-from src.service.notification import Notification
 from src.manager.memories import Memories
 from src.core.entites.models import Base
 from src.bot.bot import run_bot

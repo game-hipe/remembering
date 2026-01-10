@@ -14,7 +14,7 @@ REMEMBER_MORE_TEXT = Template(
 REMEMBER_TEXT = Template(
     "Привет! У тебя не законченоое дело <b>${title}</b>.\n\n"
     "Вот что ты себе оставил:\n<b>${content}</b>\n"
-    "Ты хотел это себе напомнить в {date}"
+    "Ты хотел это себе напомнить в ${date}"
 )
 
 class Notification:
@@ -162,6 +162,8 @@ class Notification:
         for task in user.memories:
             if task.is_expired:
                 tasks.append(task)
+                
+        logger.debug("Найдено просроченных задач (user.id={}, len-expired={})".format(user.id, len(tasks)))
         return tasks
 
     def _build_items(self, memories: list[OutputMemory]) -> str:

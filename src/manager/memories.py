@@ -1,5 +1,5 @@
 from typing import AsyncGenerator
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from loguru import logger
@@ -92,6 +92,8 @@ class Memories:
                 )
                 return BaseResponse(success=False, message=user.message, item=None)
             result = await self.memory_manager.add_memory(memory, user.item.id)
+            logger.debug(f"Уведомить в {result.item.remind_to}, оно просрочено {result.item.is_expired}")
+            
             logger.success(
                 f"Успешно удалось добавить память (user_id={user.item.id}, message={result.message})"
             )
@@ -265,6 +267,11 @@ class Memories:
                     )
 
                 memory.sent_at = memory.sent_at + timedelta(seconds=seconds)
+                logger.debug(
+                    "Успешно добавлено время к памяти (memory_id={}, seconds={}) напомнить в {}, оно просрочено {}".format(
+                        memory_id, seconds, memory.sent_at, memory.sent_at <= datetime.now(), 
+                    )
+                )
                 logger.success(
                     "Успешно добавлено время к памяти (memory_id={}, seconds={})".format(
                         memory_id, seconds
