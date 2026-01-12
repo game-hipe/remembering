@@ -121,6 +121,7 @@ class BaseDataBaseManager:
                 type=memory.type,
                 user_id=user_id,
                 item=str(memory.item.absolute()) if hasattr(memory, "item") else None,
+                sent_at=memory.remind_to
             )
         else:
             raise TypeError(f"Тип воспоминаний {type(memory)} неподдерживается")
