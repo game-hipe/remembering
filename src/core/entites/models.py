@@ -4,6 +4,8 @@ from typing import List, Literal, TypeAlias
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import String, ForeignKey, Integer, DateTime
 
+from .. import config
+
 _TypeFormat: TypeAlias = Literal["video", "photo", "text"]
 
 __all__ = ["Memory", "User"]
@@ -30,7 +32,7 @@ class Memory(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     sent_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=True, default=datetime.now()
+        DateTime, nullable=True, default=lambda: datetime.now(config.APP_TZ)
     )
 
     user: Mapped[User] = relationship(  # noqa
@@ -68,7 +70,7 @@ class User(Base):
     interval: Mapped[int] = mapped_column(Integer(), default=300)
 
     last_sent_at: Mapped[datetime] = mapped_column(
-        DateTime(), nullable=True, default=datetime.now()
+        DateTime(), nullable=True, default= lambda: datetime.now(config.APP_TZ)
     )
     memories: Mapped[List[Memory]] = relationship(
         "Memory", back_populates="user", cascade="all, delete-orphan", lazy="joined"

@@ -61,7 +61,7 @@ class Memories:
             )
         return result
 
-    @except_handler
+    # @except_handler
     async def add_memory(
         self, chat_id: int, memory: _Memory
     ) -> BaseResponse[OutputMemory | None]:

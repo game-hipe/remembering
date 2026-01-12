@@ -1,6 +1,7 @@
 import os
 import json
 
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -21,7 +22,8 @@ class Config:
     INTERVAL: int = int(os.getenv("INTERVAL", 300))
 
     CITATE: Path = Path("src/bot/citates.json")
-
+    APP_TZ = ZoneInfo(os.getenv("APP_TZ", "Asia/Yakutsk"))
+    
     def __post_init__(self):
         self.setup()
 

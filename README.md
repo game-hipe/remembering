@@ -18,8 +18,9 @@ python main.py # Или python3 main.py
 ### Способ 2 (Через Docker)
 
 1. Скачать [Docker](https://www.docker.com/).
-2. Собрать и запустить ваш проект через, docker-compose
+2. Создать .env, и вместо BOT_TOKEN засунуть ваш токен.
+3. Собрать и запустить ваш проект через, docker-compose
 
 ```bash
-
+docker compose up
 ```

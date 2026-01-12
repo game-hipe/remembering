@@ -5,6 +5,8 @@ from typing import Any, TypeVar, Optional, Generic, List
 
 from pydantic import BaseModel, field_validator
 
+from .. import config
+
 __all__ = [
     "TextMemory",
     "VideoMemory",
@@ -100,7 +102,7 @@ class BaseMemory(BaseModel):
     @field_validator("remind_to")
     def datetime_validator(cls, v: Any):
         if not isinstance(v, datetime):
-            return datetime.now()
+            return datetime.now(config.APP_TZ)
         elif isinstance(v, datetime):
             return v
         else:
@@ -108,7 +110,7 @@ class BaseMemory(BaseModel):
 
     @property
     def is_expired(self) -> bool:
-        return self.remind_to < datetime.now()
+        return self.remind_to < datetime.now(config.APP_TZ)
 
 
 class BaseItemMemory(BaseMemory):

@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from datetime import datetime
+
 from sqlalchemy.ext.asyncio import create_async_engine
 from loguru import logger
 
@@ -9,17 +9,17 @@ from src.core.entites.models import Base
 from src.bot.bot import run_bot
 from src.core import config
 
-
 logger.remove()
 logger.add(
     "www/logs.log",
     rotation="10 MB",
     format="<red>[REMEMBER]</red> <green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    level="INFO"
 )
 
 logger.add(
     sys.stdout,
-    format="<red>[REMEMBER]</red> <green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    format="<red>[REMEMBER]</red> <green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
 )
 
 async def main():

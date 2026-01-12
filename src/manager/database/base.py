@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, AsyncEngine
 from ...core import TextMemory, PhotoMemory, VideoMemory, OutputMemory
 from ...core import BaseUser, OutputUser
 from ...core import User, Memory
+from ...core import config
 
 _Memory: TypeAlias = TextMemory | PhotoMemory | VideoMemory
 
@@ -112,7 +113,9 @@ class BaseDataBaseManager:
                 type=memory.type,
                 user_id=memory.user_id,
                 item=memory.item,
-                remind_to=memory.sent_at,
+                remind_to=memory.sent_at.replace(
+                    tzinfo = config.APP_TZ
+                ),
             )
         elif isinstance(memory, self.__get_memory_args()):
             return Memory(
